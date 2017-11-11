@@ -1,0 +1,21 @@
+import chainer
+from chainer import functions as F
+from chainer import links as L
+
+class MLP(chainer.Chain):
+
+    def __init__(self, input_size, unit_sizes, output_size):
+        super(MLP, self).__init__()
+        self.layers = []
+        with self.init_scope():
+            sizes = zip([input_size] + unit_sizes, unit_sizes + [output_size])
+            for i, (n, m) in enumerate(sizes):
+                link = L.Linear(n, m)
+                setattr(self, 'l{}'.format(i + 1), link)
+                self.layers.append(link)
+
+    def __call__(self, x):
+        h = x
+        for layer in self.layers[:-1]:
+            h = F.relu(layer(h))
+        return self.layers[-1](h)
