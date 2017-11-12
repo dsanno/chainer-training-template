@@ -48,7 +48,7 @@ def main():
     log_path = os.path.join(output_dir, 'log.txt')
     with open(log_path, 'w') as f:
         accuracy = float(np.sum(test_label == predict_label)) / len(test_label)
-        f.write('Acciracy: {}\n'.format(accuracy))
+        f.write('Accuracy: {}\n'.format(accuracy))
 
         f.write('\nCorrect Images:\n')
         image_dir = os.path.join(output_dir, 'correct_image')
