@@ -41,7 +41,8 @@ def main():
     y = np.load(args.prediction_path)
     predict_label = np.argmax(y, axis=1)
 
-    skplt.metrics.plot_confusion_matrix(test_label, np.argmax(y, axis=1))
+    skplt.metrics.plot_confusion_matrix(test_label, np.argmax(y, axis=1),
+                                        normalize=True)
     plt.savefig(os.path.join(output_dir, 'confusion_matrix.png'))
 
     log_path = os.path.join(output_dir, 'log.txt')
