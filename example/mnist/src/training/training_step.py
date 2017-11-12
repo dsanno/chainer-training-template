@@ -16,7 +16,7 @@ class TrainingStep(StandardUpdater):
         super(TrainingStep, self).__init__(iterator, optimizer, converter,
                                            device)
         if isinstance(optimizer, dict):
-            self._target = {name: opt.terget for name, opt in optimizer.items()}
+            self._target = {name: opt.target for name, opt in optimizer.items()}
         else:
             self._target = optimizer.target
         self._fetch_func = fetch_func
@@ -32,7 +32,7 @@ class TrainingStep(StandardUpdater):
         if isinstance(self._target, dict):
             for name in self._target.keys():
                 if step_result.has_key(name):
-                    self._post_process(name, step_result['name'])
+                    self._post_process(name, step_result[name])
         else:
             self._post_process('main', step_result)
 
