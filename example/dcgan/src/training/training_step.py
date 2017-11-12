@@ -10,9 +10,9 @@ def fetch(iterators, converter, device=None):
 class TrainingStep(StandardUpdater):
 
 
-    def __init__(self, iterator, optimizer, step_func,
+    def __init__(self, iterator, optimizer, metrics_func,
                  converter=convert.concat_examples, device=None,
-                 fetch_func=fetch, step_option=None):
+                 fetch_func=fetch, metrics_option=None):
         super(TrainingStep, self).__init__(iterator, optimizer, converter,
                                            device)
         if isinstance(optimizer, dict):
@@ -20,15 +20,15 @@ class TrainingStep(StandardUpdater):
         else:
             self._target = optimizer.target
         self._fetch_func = fetch_func
-        self._step_func = step_func
-        self._step_option = step_option
+        self._metrics_func = metrics_func
+        self._metrics_option = metrics_option
 
     def update_core(self):
         batch = self._fetch_func(self._iterators, self.converter, self.device)
-        if self._step_option is None:
-            step_result = self._step_func(self._target, batch)
+        if self._metrics_option is None:
+            step_result = self._metrics_func(self._target, batch)
         else:
-            step_result = self._step_func(self._target, batch, self._step_option)
+            step_result = self._metrics_func(self._target, batch, self._metrics_option)
         if isinstance(self._target, dict):
             for name in self._target.keys():
                 if step_result.has_key(name):
