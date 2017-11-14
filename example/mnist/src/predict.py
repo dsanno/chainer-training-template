@@ -9,7 +9,7 @@ from chainer import serializers
 
 
 import dataset
-import method
+import prediction
 from net.mlp import MLP
 
 
@@ -46,7 +46,7 @@ def main():
     _train, _valid, test = dataset.get_dataset()
     test_iter = chainer.iterators.SerialIterator(test, batch_size,
                                                  repeat=False, shuffle=False)
-    y = method.predict_dataset(net, test_iter, device=device_id)
+    y = prediction.predict_dataset(net, test_iter, device=device_id)
     np.save(output_path, y)
 
 

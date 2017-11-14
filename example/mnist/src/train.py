@@ -4,15 +4,15 @@ import json
 
 
 import chainer
-from chainer import training
+from chainer.training import Trainer
 from chainer.training import extensions
 from chainer.training import triggers
 
 
 import dataset
-import method
 from net.mlp import MLP
-from training.training_step import TrainingStep
+import training
+from training import TrainingStep
 
 
 def parse_args():
@@ -58,17 +58,17 @@ def main():
     test_iter = chainer.iterators.SerialIterator(test, batch_size,
                                                  repeat=False, shuffle=False)
 
-    updater = TrainingStep(train_iter, optimizer, method.calculate_metrics,
+    updater = TrainingStep(train_iter, optimizer, training.calculate_metrics,
                            device=device_id)
-    trainer = training.Trainer(updater, (config['epoch'], 'epoch'),
+    trainer = Trainer(updater, (config['epoch'], 'epoch'),
                                out=config['output_dir'])
 
     evaluator = extensions.Evaluator(valid_iter, net,
-                                     eval_func=method.make_eval_func(net),
+                                     eval_func=training.make_eval_func(net),
                                      device=device_id)
     trainer.extend(evaluator, name='validation')
     evaluator = extensions.Evaluator(test_iter, net,
-                                     eval_func=method.make_eval_func(net),
+                                     eval_func=training.make_eval_func(net),
                                      device=device_id)
     trainer.extend(evaluator, name='test')
 
