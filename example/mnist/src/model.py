@@ -1,5 +1,9 @@
+import numpy as np
+
 import chainer
+from chainer import cuda
 from chainer import functions as F
+from chainer.dataset import convert
 
 
 def calculate_metrics(net, batch):
@@ -18,3 +22,8 @@ def make_eval_func(net):
         metrics = calculate_metrics(net, in_arrays)
         chainer.report(metrics, net)
     return evaluate
+
+
+def predict(net, x):
+    y = net(x)
+    return F.softmax(y)

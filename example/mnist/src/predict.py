@@ -5,11 +5,13 @@ import numpy as np
 
 
 import chainer
+from chainer import cuda
 from chainer import serializers
+from chainer.dataset import convert
 
 
 import dataset
-import prediction
+import model
 from net.mlp import MLP
 
 
@@ -24,6 +26,16 @@ def parse_args():
     parser.add_argument('--output', '-o', type=str, default=None,
                         help='Result output file path')
     return parser.parse_args()
+
+
+def predict_dataset(net, iterator, converter=convert.concat_examples, device=None):
+    scores = []
+    with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+        for batch in iterator:
+            x, t = converter(batch, device)
+            y = model.predict(net, x)
+            scores.append(cuda.to_cpu(y.data))
+    return np.concatenate(scores, axis=0)
 
 
 def main():
@@ -43,10 +55,11 @@ def main():
         net.to_gpu()
     serializers.load_npz(args.model, net)
 
-    _train, _valid, test = dataset.get_dataset()
+    datasets = dataset.get_dataset()
+    test = datasets['test']
     test_iter = chainer.iterators.SerialIterator(test, batch_size,
                                                  repeat=False, shuffle=False)
-    y = prediction.predict_dataset(net, test_iter, device=device_id)
+    y = predict_dataset(net, test_iter, device=device_id)
     np.save(output_path, y)
 
 

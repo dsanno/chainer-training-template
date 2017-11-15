@@ -12,6 +12,10 @@ def _transform(in_data):
 
 def get_dataset():
     train, test = datasets.get_mnist()
-    valid, train = datasets.split_dataset_random(train, 5000)
+    validation, train = datasets.split_dataset_random(train, 5000)
     train = datasets.TransformDataset(train, _transform)
-    return train, valid, test
+    return {
+        'train': train,
+        'validation': validation,
+        'test': test,
+    }

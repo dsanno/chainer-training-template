@@ -10,8 +10,8 @@ from chainer.training import triggers
 
 
 import dataset
+import model
 from net.mlp import MLP
-import training
 from training import TrainingStep
 
 
@@ -27,6 +27,8 @@ def parse_args():
                         help='Resume file path')
     parser.add_argument('--silent', action='store_true',
                         help='Do not print training progress if set')
+    parser.add_argument('--app-config', type=str, default='config/app.json',
+                        help='Application config file path')
     return parser.parse_args()
 
 
@@ -34,6 +36,9 @@ def main():
     args = parse_args()
     with open(args.config_path) as f:
         config = json.load(f)
+    with open(args.app_config) as f:
+        app_config = json.load(f)
+    app_train_config = app_config.get('train', {})
     command_config = {'gpu': args.gpu}
     if args.output_dir is not None:
         command_config['output_dir'] = args.output_dir
@@ -50,53 +55,64 @@ def main():
     optimizer = chainer.optimizers.Adam(config['learning_rate'])
     optimizer.setup(net)
 
-    train, valid, test = dataset.get_dataset()
-
-    train_iter = chainer.iterators.SerialIterator(train, batch_size)
-    valid_iter = chainer.iterators.SerialIterator(valid, batch_size,
-                                                 repeat=False, shuffle=False)
-    test_iter = chainer.iterators.SerialIterator(test, batch_size,
-                                                 repeat=False, shuffle=False)
-
-    updater = TrainingStep(train_iter, optimizer, training.calculate_metrics,
+    datasets = dataset.get_dataset()
+    iterators = {}
+    if isinstance(datasets, dict):
+        for name, data in datasets.items():
+            if name == 'train':
+                train_iterator = chainer.iterators.SerialIterator(data, batch_size)
+            else:
+                iterators[name] = chainer.iterators.SerialIterator(data, batch_size,
+                                                            repeat=False, shuffle=False)
+    else:
+        train_iterator = chainer.iterators.SerialIterator(datasets, batch_size)
+    updater = TrainingStep(train_iterator, optimizer, model.calculate_metrics,
                            device=device_id)
-    trainer = Trainer(updater, (config['epoch'], 'epoch'),
-                               out=config['output_dir'])
+    trainer = Trainer(updater, (config['epoch'], 'epoch'), out=config['output_dir'])
+    for name, iterator in iterators.items():
+        evaluator = extensions.Evaluator(iterator, net,
+                                         eval_func=model.make_eval_func(net),
+                                         device=device_id)
+        trainer.extend(evaluator, name=name)
 
-    evaluator = extensions.Evaluator(valid_iter, net,
-                                     eval_func=training.make_eval_func(net),
-                                     device=device_id)
-    trainer.extend(evaluator, name='validation')
-    evaluator = extensions.Evaluator(test_iter, net,
-                                     eval_func=training.make_eval_func(net),
-                                     device=device_id)
-    trainer.extend(evaluator, name='test')
-
-    trainer.extend(extensions.dump_graph('main/loss'))
+    dump_graph_node = app_train_config.get('dump_graph', None)
+    if dump_graph_node is not None:
+        trainer.extend(extensions.dump_graph(dump_graph_node))
 
     trainer.extend(extensions.snapshot(filename='snapshot.state'),
                    trigger=(1, 'epoch'))
     trainer.extend(extensions.snapshot_object(net, filename='latest.model'),
                    trigger=(1, 'epoch'))
-    trigger = triggers.MaxValueTrigger('validation/main/accuracy')
-    trainer.extend(extensions.snapshot_object(net, filename='best.model'),
-                   trigger=trigger)
-
+    max_value_trigger_key = app_train_config.get('max_value_trigger', None)
+    min_value_trigger_key = app_train_config.get('min_value_trigger', None)
+    if max_value_trigger_key is not None:
+        trigger = triggers.MaxValueTrigger(max_value_trigger_key)
+        trainer.extend(extensions.snapshot_object(net, filename='best.model'),
+                       trigger=trigger)
+    elif min_value_trigger_key is not None:
+        trigger = triggers.MinValueTrigger(min_value_trigger_key)
+        trainer.extend(extensions.snapshot_object(net, filename='best.model'),
+                       trigger=trigger)
     trainer.extend(extensions.LogReport())
+    if isinstance(optimizer, dict):
+        for name, opt in optimizer.item():
+            if hasattr(opt, 'lr'):
+                key = '{}/lr'.format(name)
+                trainer.extend(extensions.observe_lr(name, key))
+    elif hasattr(optimizer, 'lr'):
+        trainer.extend(extensions.observe_lr(name))
 
     if extensions.PlotReport.available():
-        trainer.extend(
-            extensions.PlotReport(['main/loss', 'test/main/loss'],
-                                  'epoch', file_name='loss.png'))
-        trainer.extend(
-            extensions.PlotReport(
-                ['main/accuracy', 'test/main/accuracy'],
-                'epoch', file_name='accuracy.png'))
+        plot_targets = app_train_config.get('plot_report', {})
+        for name, targets in plot_targets.items():
+            file_name = '{}.png'.format(name)
+            trainer.extend(extensions.PlotReport(targets, 'epoch',
+                file_name=file_name))
 
     if not args.silent:
-        trainer.extend(extensions.PrintReport(
-            ['epoch', 'main/loss', 'main/accuracy',
-             'validation/main/accuracy', 'test/main/accuracy', 'elapsed_time']))
+        print_targets = app_train_config.get('print_report', [])
+        if print_targets is not None and print_targets != []:
+            trainer.extend(extensions.PrintReport(print_targets))
         trainer.extend(extensions.ProgressBar())
 
     if args.resume:
