@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+from importlib import import_module
 import json
 
 
@@ -11,7 +12,6 @@ from chainer.training import triggers
 
 import dataset
 import model
-from net.mlp import MLP
 from training import TrainingStep
 
 
@@ -32,6 +32,43 @@ def parse_args():
     return parser.parse_args()
 
 
+def load_class(class_path, default_package=None):
+    parts = class_path.split('.')
+    package_path = '.'.join(parts[:-1])
+    class_name = parts[-1]
+    if default_package is not None and hasattr(default_package, class_name):
+        return getattr(default_package, class_name)
+    return getattr(import_module(package_path), class_name)
+
+
+def create_instance(class_path, parameter=None, default_package=None):
+    constructor = load_class(class_path, default_package)
+    if isinstance(parameter, list):
+        return constructor(*parameter)
+    elif isinstance(parameter, dict):
+        return constructor(**parameter)
+    elif parameter is not None:
+        return constructor(parameter)
+    return constructor()
+
+
+def create_network(params):
+    parameter = params.get('parameter', None)
+    net = create_instance(params['class'], parameter)
+    return net
+
+
+def create_optimizer(params, net):
+    parameter = params.get('parameter', None)
+    optimizer = create_instance(params['class'], parameter, chainer.optimizers)
+    optimizer.setup(net)
+    for param in params.get('hook', []):
+        parameter = param.get('parameter', None)
+        hook = create_instance(param['class'], parameter, chainer.optimizer)
+        optimizer.add_hook(hook)
+    return optimizer
+
+
 def main():
     args = parse_args()
     with open(args.config_path) as f:
@@ -47,13 +84,21 @@ def main():
     device_id = config['gpu']
     batch_size = config['batch_size']
 
-    net = MLP(28 * 28, config['layers'], 10)
+    network_params = config['network']
+    nets = {k: create_network(v) for k, v in network_params.items()}
+    optimizers = {k: create_optimizer(v['optimizer'], nets[k])
+            for k, v in network_params.items()}
+    if len(optimizers) == 1:
+        key, target_optimizer = list(optimizers.items())[0]
+        target = nets[key]
+    else:
+        target = nets
+        target_optimizer = optimizers
+
     if device_id >= 0:
         chainer.cuda.get_device_from_id(device_id).use()
-        net.to_gpu()
-
-    optimizer = chainer.optimizers.Adam(config['learning_rate'])
-    optimizer.setup(net)
+        for net in nets.values():
+            net.to_gpu()
 
     datasets = dataset.get_dataset()
     iterators = {}
@@ -66,12 +111,12 @@ def main():
                                                             repeat=False, shuffle=False)
     else:
         train_iterator = chainer.iterators.SerialIterator(datasets, batch_size)
-    updater = TrainingStep(train_iterator, optimizer, model.calculate_metrics,
+    updater = TrainingStep(train_iterator, target_optimizer, model.calculate_metrics,
                            device=device_id)
     trainer = Trainer(updater, (config['epoch'], 'epoch'), out=config['output_dir'])
     for name, iterator in iterators.items():
-        evaluator = extensions.Evaluator(iterator, net,
-                                         eval_func=model.make_eval_func(net),
+        evaluator = extensions.Evaluator(iterator, target,
+                                         eval_func=model.make_eval_func(target),
                                          device=device_id)
         trainer.extend(evaluator, name=name)
 
@@ -81,26 +126,36 @@ def main():
 
     trainer.extend(extensions.snapshot(filename='snapshot.state'),
                    trigger=(1, 'epoch'))
-    trainer.extend(extensions.snapshot_object(net, filename='latest.model'),
-                   trigger=(1, 'epoch'))
+    for k, net in nets.items():
+        file_name = 'latest.{}.model'.format(k)
+        trainer.extend(extensions.snapshot_object(net, filename=file_name),
+                       trigger=(1, 'epoch'))
     max_value_trigger_key = app_train_config.get('max_value_trigger', None)
     min_value_trigger_key = app_train_config.get('min_value_trigger', None)
     if max_value_trigger_key is not None:
         trigger = triggers.MaxValueTrigger(max_value_trigger_key)
-        trainer.extend(extensions.snapshot_object(net, filename='best.model'),
-                       trigger=trigger)
+        for key, net in nets.items():
+            file_name = 'best.{}.model'.format(key)
+            trainer.extend(extensions.snapshot_object(net, filename=file_name),
+                           trigger=trigger)
     elif min_value_trigger_key is not None:
         trigger = triggers.MinValueTrigger(min_value_trigger_key)
-        trainer.extend(extensions.snapshot_object(net, filename='best.model'),
-                       trigger=trigger)
+        for key, net in nets.items():
+            file_name = 'best.{}.model'.format(key)
+            trainer.extend(extensions.snapshot_object(net, file_name),
+                           trigger=trigger)
     trainer.extend(extensions.LogReport())
-    if isinstance(optimizer, dict):
-        for name, opt in optimizer.item():
-            if hasattr(opt, 'lr'):
-                key = '{}/lr'.format(name)
-                trainer.extend(extensions.observe_lr(name, key))
-    elif hasattr(optimizer, 'lr'):
-        trainer.extend(extensions.observe_lr(name))
+    if len(optimizers) == 1:
+        for name, opt in optimizers.items():
+            if not hasattr(opt, 'lr'):
+                continue
+            trainer.extend(extensions.observe_lr(name))
+    else:
+        for name, opt in optimizers.items():
+            if not hasattr(opt, 'lr'):
+                continue
+            key = '{}/lr'.format(name)
+            trainer.extend(extensions.observe_lr(name, key))
 
     if extensions.PlotReport.available():
         plot_targets = app_train_config.get('plot_report', {})

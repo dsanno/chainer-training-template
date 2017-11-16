@@ -1,9 +1,19 @@
 {
   "batch_size": 100,
   "epoch": 100,
-  "learning_rate": 0.001,
-  "weight_decay": 0.001,
-  "layers": [100, 100],
   "gpu": -1,
+  "network": {
+    "main": {
+      "class": "net.mlp.MLP",
+      "parameter": [784, [100, 100], 10],
+      "optimizer": {
+        "class": "Adam",
+        "hook": [{
+          "class": "WeightDecay",
+          "parameter": [0.0001]
+        }]
+      }
+    }
+  },
   "output_dir": "result/mlp"
 }

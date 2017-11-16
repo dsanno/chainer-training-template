@@ -35,7 +35,8 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    _train, _valid, test = dataset.get_dataset()
+    datasets = dataset.get_dataset()
+    test = datasets['test']
     test_label = [t for x, t in test[:]]
     test_label = np.asarray(test_label, dtype=np.int32)
     y = np.load(args.prediction_path)
