@@ -1,6 +1,5 @@
 from __future__ import print_function
 import argparse
-from importlib import import_module
 import json
 
 
@@ -13,6 +12,7 @@ from chainer.training import triggers
 import dataset
 import model
 from training import TrainingStep
+import util
 
 
 def parse_args():
@@ -32,43 +32,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_class(class_path, default_package=None):
-    parts = class_path.split('.')
-    package_path = '.'.join(parts[:-1])
-    class_name = parts[-1]
-    if default_package is not None and hasattr(default_package, class_name):
-        return getattr(default_package, class_name)
-    return getattr(import_module(package_path), class_name)
-
-
-def create_instance(class_path, parameter=None, default_package=None):
-    constructor = load_class(class_path, default_package)
-    if isinstance(parameter, list):
-        return constructor(*parameter)
-    elif isinstance(parameter, dict):
-        return constructor(**parameter)
-    elif parameter is not None:
-        return constructor(parameter)
-    return constructor()
-
-
-def create_network(params):
-    parameter = params.get('parameter', None)
-    net = create_instance(params['class'], parameter)
-    return net
-
-
-def create_optimizer(params, net):
-    parameter = params.get('parameter', None)
-    optimizer = create_instance(params['class'], parameter, chainer.optimizers)
-    optimizer.setup(net)
-    for param in params.get('hook', []):
-        parameter = param.get('parameter', None)
-        hook = create_instance(param['class'], parameter, chainer.optimizer)
-        optimizer.add_hook(hook)
-    return optimizer
-
-
 def main():
     args = parse_args()
     with open(args.config_path) as f:
@@ -85,8 +48,8 @@ def main():
     batch_size = config['batch_size']
 
     network_params = config['network']
-    nets = {k: create_network(v) for k, v in network_params.items()}
-    optimizers = {k: create_optimizer(v['optimizer'], nets[k])
+    nets = {k: util.create_network(v) for k, v in network_params.items()}
+    optimizers = {k: util.create_optimizer(v['optimizer'], nets[k])
             for k, v in network_params.items()}
     if len(optimizers) == 1:
         key, target_optimizer = list(optimizers.items())[0]
