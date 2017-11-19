@@ -1,3 +1,6 @@
 *.pyc
 result/*
 !result/.gitkeep
+config/*
+!config/app.json
+!condig/config.json
