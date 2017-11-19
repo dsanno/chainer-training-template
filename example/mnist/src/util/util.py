@@ -2,6 +2,8 @@ from importlib import import_module
 
 import chainer
 
+import dataset
+
 
 def _load_class(class_path, default_package=None):
     parts = class_path.split('.')
@@ -38,3 +40,14 @@ def create_optimizer(params, net):
         hook = _create_instance(param['class'], parameter, chainer.optimizer)
         optimizer.add_hook(hook)
     return optimizer
+
+
+def get_dataset(params):
+    parameter = params.get('parameter', None)
+    if isinstance(parameter, list):
+        return dataset.get_dataset(*parameter)
+    elif isinstance(parameter, dict):
+        return dataset.get_dataset(**parameter)
+    elif parameter is not None:
+        return dataset.get_dataset(parameter)
+    return dataset.get_dataset()

@@ -9,7 +9,6 @@ from chainer.training import extensions
 from chainer.training import triggers
 
 
-import dataset
 import model
 from training import TrainingStep
 import util
@@ -63,7 +62,7 @@ def main():
         for net in nets.values():
             net.to_gpu()
 
-    datasets = dataset.get_dataset()
+    datasets = util.get_dataset(config.get('dataset', {}))
     iterators = {}
     if isinstance(datasets, dict):
         for name, data in datasets.items():

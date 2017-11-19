@@ -11,7 +11,6 @@ from chainer import serializers
 from chainer.dataset import convert
 
 
-import dataset
 import model
 import util
 
@@ -60,7 +59,7 @@ def main():
         for net in nets.values():
             net.to_gpu()
 
-    datasets = dataset.get_dataset()
+    datasets = util.get_dataset(config.get('dataset', {}))
     test = datasets['test']
     test_iter = chainer.iterators.SerialIterator(test, batch_size,
                                                  repeat=False, shuffle=False)

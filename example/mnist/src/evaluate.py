@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 
-import dataset
+import util
 
 
 def parse_args():
@@ -35,7 +35,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    datasets = dataset.get_dataset()
+    datasets = util.get_dataset()
     test = datasets['test']
     test_label = [t for x, t in test[:]]
     test_label = np.asarray(test_label, dtype=np.int32)
