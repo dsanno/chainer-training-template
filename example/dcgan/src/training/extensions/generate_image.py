@@ -11,6 +11,8 @@ def generate_image(gen, row_num, col_num, output_dir, z=None):
     if z is None:
         z = np.random.random((row_num * col_num, gen.latent_size)).astype(np.float32)
     z = xp.asarray(z)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     @chainer.training.make_extension()
     def make_image(trainer):
