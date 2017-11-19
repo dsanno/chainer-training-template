@@ -9,11 +9,11 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 
-import dataset
+import util
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='MNIST evaluation example')
+    parser = argparse.ArgumentParser(description='evaluation')
     parser.add_argument('prediction_path',
                         help='Prediction file path')
     parser.add_argument('output_dir',
@@ -30,18 +30,19 @@ def sort_prediction(prediction, flag_true, flag_pred):
 
 
 def main():
+    # TODO: Implements your evaluation
     args = parse_args()
     output_dir = args.output_dir
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    _train, _valid, test = dataset.get_dataset()
+    datasets = util.get_dataset()
+    test = datasets['test']
     test_label = [t for x, t in test[:]]
     test_label = np.asarray(test_label, dtype=np.int32)
     y = np.load(args.prediction_path)
     predict_label = np.argmax(y, axis=1)
 
-    # TODO: Implements your evaluation
     skplt.metrics.plot_confusion_matrix(test_label, np.argmax(y, axis=1),
                                         normalize=True)
     plt.savefig(os.path.join(output_dir, 'confusion_matrix.png'))

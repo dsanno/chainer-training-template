@@ -1,0 +1,13 @@
+{
+  "train": {
+    "dump_graph": "main/loss",
+    "plot_report": {
+      "loss": ["main/loss", "test/main/loss"],
+      "accuracy": ["main/accuracy", "test/main/accuracy"]
+    },
+    "print_report": ["epoch", "main/loss", "main/accuracy",
+      "validation/main/accuracy", "test/main/accuracy", "elapsed_time"],
+    "max_value_trigger": "validation/main/accuracy",
+    "min_value_trigger": null
+  }
+}

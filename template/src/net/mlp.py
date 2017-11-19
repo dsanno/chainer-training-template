@@ -5,7 +5,7 @@ from chainer import links as L
 # TODO: Implement your network (rename file and class if necessary)
 class MLP(chainer.Chain):
 
-    def __init__(self, input_size=28 * 28, unit_sizes=[100, 100], output_size=10):
+    def __init__(self, input_size, unit_sizes, output_size):
         super(MLP, self).__init__()
         self.layers = []
         with self.init_scope():

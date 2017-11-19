@@ -1,29 +1,41 @@
 from __future__ import print_function
 import argparse
 import json
+from importlib import import_module
 import numpy as np
 
 
 import chainer
+from chainer import cuda
 from chainer import serializers
+from chainer.dataset import convert
 
 
-import dataset
-import method
-from net.mlp import MLP
+import model
+import util
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='MNIST prediction example')
+    parser = argparse.ArgumentParser(description='prediction')
     parser.add_argument('config_path',
                         help='Configuration file path')
     parser.add_argument('model',
                         help='Mofel file path')
+    parser.add_argument('output', type=str, default=None,
+                        help='Result output file path')
     parser.add_argument('--gpu', '-g', type=int, default=-1,
                         help='GPU device ID (negative value indicates CPU)')
-    parser.add_argument('--output', '-o', type=str, default=None,
-                        help='Result output file path')
     return parser.parse_args()
+
+
+def predict_dataset(net, iterator, converter=convert.concat_examples, device=None):
+    scores = []
+    with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+        for batch in iterator:
+            x, t = converter(batch, device)
+            y = model.predict(net, x)
+            scores.append(cuda.to_cpu(y.data))
+    return np.concatenate(scores, axis=0)
 
 
 def main():
@@ -37,17 +49,21 @@ def main():
     batch_size = config['batch_size']
     output_path = args.output
 
-    # TODO: Call your network constructor
-    net = MLP()
+    network_params = config['network']
+    for k, v in network_params.items():
+        net = util.create_network(v)
+        model_path = '{}.{}.model'.format(args.model, k)
+        serializers.load_npz(model_path, net)
     if device_id >= 0:
         chainer.cuda.get_device_from_id(device_id).use()
-        net.to_gpu()
-    serializers.load_npz(args.model, net)
+        for net in nets.values():
+            net.to_gpu()
 
-    _train, _valid, test = dataset.get_dataset()
+    datasets = util.get_dataset(config.get('dataset', {}))
+    test = datasets['test']
     test_iter = chainer.iterators.SerialIterator(test, batch_size,
                                                  repeat=False, shuffle=False)
-    y = method.predict_dataset(net, test_iter, device=device_id)
+    y = predict_dataset(net, test_iter, device=device_id)
     np.save(output_path, y)
 
 
